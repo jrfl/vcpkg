@@ -1,0 +1,15 @@
+--- a/CMakeLists.txt	2017-03-07 03:02:24.000000000 -0500
++++ b/CMakeLists.txt	2018-02-22 16:54:50.981600300 -0500
+@@ -77,9 +77,9 @@ include_directories( 
+ # Define Targets
+ 
+ # If building on windows, install path will be in build/winbuild
+-if(CMAKE_SYSTEM MATCHES "Windows")
+-   set(CMAKE_INSTALL_PREFIX "winbuild")
+-endif()
++#if(CMAKE_SYSTEM MATCHES "Windows")
++#   set(CMAKE_INSTALL_PREFIX "winbuild")
++#endif()
+ 
+ file(GLOB_RECURSE HeaderFileList "${CMAKE_CURRENT_SOURCE_DIR}/include/*")
+ file(GLOB_RECURSE SourceFileList "${CMAKE_CURRENT_SOURCE_DIR}/src/*")

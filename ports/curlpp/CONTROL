@@ -1,0 +1,4 @@
+Source: curlpp
+Version: 0.8.1
+Build-Depends: curl
+Description: C++ wrapper for libcurl
