@@ -51,7 +51,7 @@
 ## * [beast](https://github.com/Microsoft/vcpkg/blob/master/ports/beast/portfile.cmake)
 function(vcpkg_from_github)
     set(oneValueArgs OUT_SOURCE_PATH REPO REF SHA512 HEAD_REF)
-    set(multipleValuesArgs)
+    set(multipleValuesArgs PATCHES)
     cmake_parse_arguments(_vdud "" "${oneValueArgs}" "${multipleValuesArgs}" ${ARGN})
 
     if(NOT DEFINED _vdud_OUT_SOURCE_PATH)
@@ -90,6 +90,19 @@ function(vcpkg_from_github)
         endif()
     endmacro()
 
+    macro(set_TEMP_SOURCE_PATH BASE BASEREF)
+    set(TEMP_SOURCE_PATH "${BASE}/TEMP/${REPO_NAME}-${BASEREF}")
+    if(NOT EXISTS ${TEMP_SOURCE_PATH})
+        # Sometimes GitHub strips a leading 'v' off the REF.
+        string(REGEX REPLACE "^v" "" REF ${BASEREF})
+        string(REPLACE "/" "-" REF ${REF})
+        set(TEMP_SOURCE_PATH "${BASE}/TEMP/${REPO_NAME}-${REF}")
+        if(NOT EXISTS ${TEMP_SOURCE_PATH})
+            message(FATAL_ERROR "Could not determine source path: '${BASE}/TEMP/${REPO_NAME}-${BASEREF}' does not exist")
+        endif()
+    endif()
+    endmacro()
+
     if(VCPKG_USE_HEAD_VERSION AND NOT DEFINED _vdud_HEAD_REF)
         message(STATUS "Package does not specify HEAD_REF. Falling back to non-HEAD version.")
         set(VCPKG_USE_HEAD_VERSION OFF)
@@ -108,8 +121,39 @@ function(vcpkg_from_github)
             SHA512 "${_vdud_SHA512}"
             FILENAME "${ORG_NAME}-${REPO_NAME}-${SANITIZED_REF}.tar.gz"
         )
-        vcpkg_extract_source_archive_ex(ARCHIVE "${ARCHIVE}")
-        set_SOURCE_PATH(${CURRENT_BUILDTREES_DIR}/src ${SANITIZED_REF})
+
+        # Hash the patches
+        set(PATCHES_HASH "")
+        foreach(PATCH IN LISTS _vdud_PATCHES)
+            file(SHA512 ${PATCH} CURRENT_HASH)
+            string(APPEND PATCHES_HASH ${CURRENT_HASH})
+        endforeach()
+
+        if (PATCHES_HASH STREQUAL "")
+            set(SOURCE_PATH "${CURRENT_BUILDTREES_DIR}/src/${REPO_NAME}-${SANITIZED_REF}")
+        else()
+            string(SHA512 PATCHES_HASH ${PATCHES_HASH})
+            string(SUBSTRING ${PATCHES_HASH} 0 10 PATCHES_HASH)
+            set(SOURCE_PATH "${CURRENT_BUILDTREES_DIR}/src/${REPO_NAME}-${SANITIZED_REF}-patchset${PATCHES_HASH}")
+        endif()
+
+        if(NOT EXISTS ${SOURCE_PATH})
+            set(TEMP_DIR "${CURRENT_BUILDTREES_DIR}/src/TEMP")
+            file(REMOVE_RECURSE ${TEMP_DIR})
+            vcpkg_extract_source_archive_ex(ARCHIVE "${ARCHIVE}" WORKING_DIRECTORY ${TEMP_DIR})
+            set_TEMP_SOURCE_PATH(${CURRENT_BUILDTREES_DIR}/src ${SANITIZED_REF})
+
+            vcpkg_apply_patches(
+                SOURCE_PATH ${TEMP_SOURCE_PATH}
+                PATCHES ${_vdud_PATCHES}
+            )
+
+            file(RENAME ${TEMP_SOURCE_PATH} ${SOURCE_PATH})
+            file(REMOVE_RECURSE ${TEMP_DIR})
+        endif()
+
+        set(${_vdud_OUT_SOURCE_PATH} "${SOURCE_PATH}" PARENT_SCOPE)
+
         return()
     endif()
 
